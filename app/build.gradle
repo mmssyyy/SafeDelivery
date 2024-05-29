@@ -34,6 +34,7 @@ dependencies {
     implementation platform('com.google.firebase:firebase-bom:33.0.0')
     implementation 'com.google.firebase:firebase-analytics'
     implementation 'com.google.firebase:firebase-database'
+    implementation 'com.naver.maps:map-sdk:3.15.0'
 
     implementation libs.appcompat
     implementation libs.material

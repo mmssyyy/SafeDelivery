@@ -42,7 +42,10 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 // 기능 1 실행
-                Toast.makeText(MainActivity.this, "기능 1 실행", Toast.LENGTH_SHORT).show();
+                // Maps 액티비티로 이동
+                Intent intent = new Intent(MainActivity.this, MapsActivity.class);
+                startActivity(intent);
+                finish();
             }
         });
 
