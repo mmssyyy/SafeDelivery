@@ -7,6 +7,7 @@ public class UserAccount {
     private String idToken; // Firebase Uid (고유 토큰정보)
     private String emailId; // 이메일 아이디
     private String password; // 비밀번호
+    private String name;
 
     public UserAccount() { }
 
@@ -32,5 +33,13 @@ public class UserAccount {
 
     public void setPassword(String password) {
         this.password = password;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
     }
 }
