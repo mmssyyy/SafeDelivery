@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="NAVER_CLIENT_ID">sij84wpj9m</string>
+    <string name="naver_client_secret">EfgVgeyFbaF89A5UbbVmdWdHPUnuvfvuAQJAAo8c</string>
 </resources>

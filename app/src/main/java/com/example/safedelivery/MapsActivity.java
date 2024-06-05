@@ -1,5 +1,6 @@
 package com.example.safedelivery;
 
+import android.Manifest;
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
@@ -15,6 +16,11 @@ import com.naver.maps.map.NaverMapSdk;
 
 
 public class MapsActivity extends AppCompatActivity {
+
+    private final String[] permissionArray = {
+            Manifest.permission.ACCESS_COARSE_LOCATION,
+            Manifest.permission.ACCESS_FINE_LOCATION
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -32,15 +38,17 @@ public class MapsActivity extends AppCompatActivity {
             return insets;
         });
 
-            Button btnMain = findViewById(R.id.btn_main);
-            btnMain.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    // 메인 화면으로 이동
-                    Intent intent = new Intent(MapsActivity.this, MainActivity.class);
-                    startActivity(intent);
-                    finish(); // 현재 액티비티 종료
-                }
+        Button btnMain = findViewById(R.id.btn_main);
+        btnMain.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                // 메인 화면으로 이동
+                Intent intent = new Intent(MapsActivity.this, MainActivity.class);
+                startActivity(intent);
+                finish(); // 현재 액티비티 종료
+            }
         });
+
     }
+
 }
