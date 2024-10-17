@@ -6,58 +6,53 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.Toast;
 
-import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
-
 
 import com.google.firebase.auth.FirebaseAuth;
 
 public class MainActivity extends AppCompatActivity {
     private FirebaseAuth mFirebaseAuth;
-    private Button button1, button2, button3;
+    private Button button1, button2, button3, btn_logout;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        EdgeToEdge.enable(this);
         setContentView(R.layout.activity_main);
 
         mFirebaseAuth = FirebaseAuth.getInstance();
 
-        // 버튼 초기화
         button1 = findViewById(R.id.button1);
         button2 = findViewById(R.id.button2);
         button3 = findViewById(R.id.button3);
+        btn_logout = findViewById(R.id.btn_logout);
 
-        // 버튼 클릭 이벤트 설정
         button1.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                // 기능 1 실행
-                // Maps 액티비티로 이동
-                Intent intent = new Intent(MainActivity.this, MapsActivity.class);
+                // 배달 요청 목록 화면으로 이동
+                Intent intent = new Intent(MainActivity.this, DeliveryListActivity.class);
                 startActivity(intent);
-                finish();
             }
         });
 
         button2.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                // 기능 2 실행
-                Toast.makeText(MainActivity.this, "기능 2 실행", Toast.LENGTH_SHORT).show();
+                // 내 배달 현황 화면으로 이동
+                Intent intent = new Intent(MainActivity.this, MapsActivity.class);
+                startActivity(intent);
             }
         });
 
         button3.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                // 기능 3 실행
-                Toast.makeText(MainActivity.this, "기능 3 실행", Toast.LENGTH_SHORT).show();
+                // 안전 운전 점수 화면으로 이동
+                Intent intent = new Intent(MainActivity.this, MapsActivity.class);
+                startActivity(intent);
             }
         });
 
-        Button btn_logout = findViewById(R.id.btn_logout);
         btn_logout.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -66,10 +61,7 @@ public class MainActivity extends AppCompatActivity {
                 Intent intent = new Intent(MainActivity.this, LoginActivity.class);
                 startActivity(intent);
                 finish();
-
             }
         });
-
-        // 탈퇴처리 -> mFirebaseAuth.getCurrentUser().delete();
     }
 }

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <EditText
+        android:id="@+id/etPickupLocation"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="픽업 위치"
+        android:inputType="text"
+        android:layout_marginBottom="8dp"/>
+
+    <EditText
+        android:id="@+id/etDeliveryLocation"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="배달 위치"
+        android:inputType="text"
+        android:layout_marginBottom="8dp"/>
+
+    <EditText
+        android:id="@+id/etFee"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="배달료"
+        android:inputType="numberDecimal"
+        android:layout_marginBottom="16dp"/>
+
+    <Button
+        android:id="@+id/btnSubmit"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="배달 요청 추가"/>
+
+</LinearLayout>

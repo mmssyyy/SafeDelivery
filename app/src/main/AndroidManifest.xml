@@ -29,6 +29,19 @@
             android:name=".MapsActivity"
             android:exported="true" />
         <activity
+            android:name=".DeliveryListActivity"
+            android:exported="true" />
+        <activity
+            android:name=".DeliveryRequest"
+            android:exported="true" />
+        <activity
+            android:name=".DeliveryRequestAdapter"
+            android:exported="true" />
+        <activity
+            android:name=".AddDeliveryRequestActivity"
+            android:exported="true" />
+
+        <activity
             android:name=".LoginActivity"
             android:exported="true" />
         <activity
