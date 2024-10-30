@@ -21,21 +21,21 @@ public class TitleActivity extends AppCompatActivity {
         moveToLoginActivity(2000);
 
         ImageView characterImageView = findViewById(R.id.character);
-        Animation characterAnimation = AnimationUtils.loadAnimation(this, R.anim.fly);
+        Animation characterAnimation = AnimationUtils.loadAnimation(getApplicationContext(), R.anim.fly);
         characterImageView.startAnimation(characterAnimation);
 
         ImageView titleImageView = findViewById(R.id.title);
-        Animation titleAnimation = AnimationUtils.loadAnimation(this, R.anim.title_scale);
+        Animation titleAnimation = AnimationUtils.loadAnimation(getApplicationContext(), R.anim.title_scale);
         titleImageView.startAnimation(titleAnimation);
     }
 
     private void moveToLoginActivity(long delayMillis) {
-        // 별도의 스레드에서 지연 작업 수행
         new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
             @Override
             public void run() {
-                startActivity(new Intent(TitleActivity.this, LoginActivity.class));
-                // 현재 액티비티는 백스택에 유지
+                Intent intent = new Intent(TitleActivity.this, LoginActivity.class);
+                startActivity(intent);
+                finish(); // 현재 액티비티 종료
             }
         }, delayMillis);
     }

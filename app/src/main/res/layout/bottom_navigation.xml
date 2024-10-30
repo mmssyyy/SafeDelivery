@@ -1,96 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:background="#FFFFFF">
+    android:layout_height="match_parent">
 
-    <ImageView
-        android:id="@+id/main_logo"
-        android:layout_width="100dp"
-        android:layout_height="50dp"
-        android:layout_marginStart="24dp"
-        android:layout_marginTop="24dp"
-        android:src="@drawable/logo"
-        android:scaleType="fitStart"/>
-
-    <androidx.cardview.widget.CardView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_margin="24dp"
-        app:cardCornerRadius="12dp"
-        app:cardElevation="0dp"
-        app:cardBackgroundColor="#F8F9FA">
-
-        <TextView
-            android:id="@+id/tvWelcome"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:padding="16dp"
-            android:text="김방구님,\n오늘도 안전한 배송 되세요!"
-            android:textSize="16sp"/>
-    </androidx.cardview.widget.CardView>
-
-    <androidx.cardview.widget.CardView
-        android:layout_width="match_parent"
-        android:layout_height="160dp"
-        android:layout_marginHorizontal="24dp"
-        app:cardCornerRadius="12dp"
-        app:cardElevation="0dp"
-        app:cardBackgroundColor="#E3F2FD">
-
-        <TextView
-
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:gravity="center"
-            android:text="오도방구 사용법\n어쩌구저쩌구"
-            android:textSize="18sp"/>
-    </androidx.cardview.widget.CardView>
-
-    <!-- 버튼 그룹 -->
+    <!-- 메인 콘텐츠 영역 -->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:layout_margin="24dp">
+        android:layout_height="match_parent"
+        android:layout_above="@+id/bottomBar"
+        android:orientation="vertical">
 
-        <Button
-            android:id="@+id/btnStartDelivery"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="배달 시작하기"
-            android:backgroundTint="#4FC3F7"
-            android:textColor="@android:color/white"
-            android:layout_marginEnd="8dp"/>
+        <!-- 여기에 메인 콘텐츠를 추가하세요 -->
 
-        <Button
-            android:id="@+id/btnPointShop"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="포인트 상점"
-            android:backgroundTint="#FFFFFF"
-            android:textColor="#4FC3F7"
-            android:layout_marginStart="8dp"/>
     </LinearLayout>
 
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"/>
-
+    <!-- 하단 바 -->
     <LinearLayout
+        android:id="@+id/bottomBar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:background="#FFFFFF"
         android:elevation="8dp"
-        android:paddingVertical="8dp">
+        android:paddingVertical="8dp"
+        android:layout_alignParentBottom="true">
 
+        <!-- 홈 버튼 -->
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
@@ -115,7 +50,7 @@
                 android:layout_marginTop="4dp"/>
         </LinearLayout>
 
-
+        <!-- 배달목록 버튼 -->
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
@@ -140,6 +75,7 @@
                 android:layout_marginTop="4dp"/>
         </LinearLayout>
 
+        <!-- 포인트상점 버튼 -->
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
@@ -164,6 +100,7 @@
                 android:layout_marginTop="4dp"/>
         </LinearLayout>
 
+        <!-- 내정보 버튼 -->
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
@@ -186,8 +123,8 @@
                 android:text="내정보"
                 android:textSize="12sp"
                 android:layout_marginTop="4dp"/>
-
         </LinearLayout>
 
     </LinearLayout>
-</LinearLayout>
+
+</RelativeLayout>

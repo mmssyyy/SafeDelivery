@@ -9,6 +9,8 @@ public class UserAccount {
     private String password; // 비밀번호
     private String name;
 
+    private int points;
+
     public UserAccount() { }
 
     public String getIdToken() {
@@ -42,4 +44,13 @@ public class UserAccount {
     public void setName(String name) {
         this.name = name;
     }
+
+    public int getPoints() {
+        return points;
+    }
+
+    public void setPoints(int points) {
+        this.points = points;
+    }
+
 }

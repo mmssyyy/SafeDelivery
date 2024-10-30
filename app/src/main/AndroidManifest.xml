@@ -3,8 +3,10 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
 
 
     <application
@@ -22,7 +24,10 @@
 
         <meta-data
             android:name="com.naver.maps.map.CLIENT_ID"
-            android:value="@string/NAVER_CLIENT_ID" />
+            android:value="sij84wpj9m" />
+        <meta-data
+            android:name="com.naver.maps.map.CLIENT_SECRET"
+            android:value="EfgVgeyFbaF89A5UbbVmdWdHPUnuvfvuAQJAAo8c" />
 
 
         <activity
@@ -32,13 +37,49 @@
             android:name=".DeliveryListActivity"
             android:exported="true" />
         <activity
+            android:name=".AddressAdapter"
+            android:exported="true" />
+        <activity
+            android:name=".AddressItem"
+            android:exported="true" />
+        <activity
             android:name=".DeliveryRequest"
             android:exported="true" />
         <activity
             android:name=".DeliveryRequestAdapter"
             android:exported="true" />
+
+        <activity
+            android:name=".NavigationActivity"
+            android:exported="true" />
+
         <activity
             android:name=".AddDeliveryRequestActivity"
+            android:exported="true" />
+        <activity
+            android:name=".PointShopActivity"
+            android:exported="true" />
+        <activity
+            android:name=".BaseActivity"
+            android:exported="true" />
+        <activity
+            android:name=".RewardItem"
+            android:exported="true" />
+        <activity
+            android:name=".RewardHistory"
+            android:exported="true" />
+        <activity
+            android:name=".UserProfileActivity"
+            android:exported="true" />
+        <activity
+            android:name=".RewardAdapter"
+            android:exported="true" />
+
+        <activity
+            android:name=".CompletedDeliveriesActivity"
+            android:exported="true" />
+        <activity
+            android:name=".CompletedDeliveryAdapter"
             android:exported="true" />
 
         <activity

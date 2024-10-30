@@ -3,13 +3,20 @@ plugins {
     id 'com.google.gms.google-services'
 }
 
+def localProperties = new Properties()
+localProperties.load(new FileInputStream(rootProject.file("local.properties")))
+
 android {
     namespace 'com.example.safedelivery'
     compileSdk 34
+    buildFeatures {
+        buildConfig true
+    }
+
 
     defaultConfig {
         applicationId "com.example.safedelivery"
-        minSdk 33
+        minSdk 31
         targetSdk 34
         versionCode 1
         versionName "1.0"
@@ -38,6 +45,11 @@ dependencies {
     implementation 'com.google.firebase:firebase-analytics'
     implementation 'com.google.firebase:firebase-database'
     implementation 'com.naver.maps:map-sdk:3.15.0'
+
+
+    implementation 'com.google.android.gms:play-services-location:20.0.0'
+    implementation 'com.google.android.gms:play-services-base:18.1.0'
+    implementation 'com.google.android.gms:play-services-basement:18.1.0'
 
 //    implementation 'com.kakaomobility.knsdk:knsdk_ui:1.8.1'
 

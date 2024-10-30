@@ -16,12 +16,12 @@
         android:padding="16dp">
 
         <TextView
-            android:id="@+id/tvDeliveryId"
+            android:id="@+id/tvCompletedTime"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textSize="18sp"
-            android:textStyle="bold"
-            android:textColor="#4FC3F7" />
+            android:textSize="16sp"
+            android:textColor="#4CAF50"
+            android:textStyle="bold" />
 
         <TextView
             android:id="@+id/tvPickupLocation"
@@ -47,20 +47,6 @@
             android:textStyle="bold"
             android:layout_marginTop="8dp"
             android:textColor="#4FC3F7" />
-
-        <Button
-            android:id="@+id/btnStartDelivery"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="배달 수락"
-            android:textColor="@android:color/white"
-            android:backgroundTint="#03A9F4"
-            android:layout_marginTop="8dp" />
-
     </LinearLayout>
-
-
-
-
 
 </androidx.cardview.widget.CardView>
