@@ -28,7 +28,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:padding="16dp"
-            android:text="김방구님,\n오늘도 안전한 배송 되세요!"
+            android:text="ㅁㅁ님,\n오늘도 안전한 배송 되세요!"
             android:textSize="16sp"/>
     </androidx.cardview.widget.CardView>
 

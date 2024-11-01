@@ -46,6 +46,7 @@ dependencies {
     implementation 'com.google.firebase:firebase-database'
     implementation 'com.naver.maps:map-sdk:3.15.0'
 
+    implementation 'com.firebase:geofire-android:3.1.0'
 
     implementation 'com.google.android.gms:play-services-location:20.0.0'
     implementation 'com.google.android.gms:play-services-base:18.1.0'

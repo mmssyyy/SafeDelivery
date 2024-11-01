@@ -1,15 +1,26 @@
 package com.example.safedelivery;
 
+import com.naver.maps.map.overlay.LocationOverlay;
 import android.Manifest;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.graphics.Typeface;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.location.Location;
+import android.media.MediaPlayer;
 import android.os.Bundle;
+import android.os.Handler;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.media.AudioManager;
+import android.media.ToneGenerator;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
@@ -92,11 +103,41 @@ public class NavigationActivity extends AppCompatActivity implements OnMapReadyC
     private List<Float> speedHistory = new ArrayList<>();  // 최근 속도 기록
     private static final int SPEED_HISTORY_SIZE = 5;      // 평균 계산에 사용할 기록 수
 
+    private TextView speedLimitView;
+    private View safetyAlertView;
+    private ImageView safetyIcon;
+    private TextView safetyText;
+    private ToneGenerator toneGenerator;
+    private boolean isInSectionZone = false;
+    private double sectionStartTime = 0;
+    private double sectionDistance = 0;
+    private double currentSpeed = 0;
+
+    private SensorManager sensorManager;
+    private Sensor accelerometer;
+    private Sensor magnetometer;
+    private float[] lastAccelerometer = new float[3];
+    private float[] lastMagnetometer = new float[3];
+    private boolean haveSensor = false;
+    private boolean haveSensor2 = false;
+    private float[] rotationMatrix = new float[9];
+    private float[] orientation = new float[3];
+    private float currentDegree = 0f;
+    private static final float ROTATION_THRESHOLD = 5.0f;  // 2.0f에서 증가
+    private static final float SMOOTH_FACTOR = 0.05f;     // 0.1f에서 감소
+
+    private float[] filteredRotationMatrix = new float[9];
+    private float filteredDegree = 0f;
+
+
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_navigation);
+
+        sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
 
         // Firebase 초기화
         mDatabase = FirebaseDatabase.getInstance().getReference("SafeDelivery");
@@ -124,12 +165,35 @@ public class NavigationActivity extends AppCompatActivity implements OnMapReadyC
             );
         }
 
+        if (sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER) != null) {
+            accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+            haveSensor = true;
+        }
+
+        if (sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD) != null) {
+            magnetometer = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
+            haveSensor2 = true;
+        }
+
         btnCompleteDelivery = findViewById(R.id.btnCompleteDelivery);
         btnCompleteDelivery.setOnClickListener(v -> showCompletionDialog());
 
         setupLocationUpdates();
+        setupSafetyAlerts();
         initializeViews();
         initializeMap(savedInstanceState);
+    }
+
+    private void setupSafetyAlerts() {
+        // 안전 운전 관련 UI 초기화
+        safetyAlertView = findViewById(R.id.safetyAlert);
+        speedLimitView = findViewById(R.id.speedLimitView);
+        safetyIcon = findViewById(R.id.safetyIcon);
+        safetyText = findViewById(R.id.safetyText);
+
+        // 초기 상태 설정
+        safetyAlertView.setVisibility(View.GONE);
+        speedLimitView.setVisibility(View.GONE);
     }
 
 
@@ -140,6 +204,14 @@ public class NavigationActivity extends AppCompatActivity implements OnMapReadyC
                 .setPositiveButton("완료", (dialog, which) -> completeDelivery())
                 .setNegativeButton("취소", null)
                 .show();
+    }
+
+
+    private void applyLowPassFilter(float[] input, float[] output) {
+        final float alpha = 0.1f;
+        for (int i = 0; i < input.length; i++) {
+            output[i] = output[i] + alpha * (input[i] - output[i]);
+        }
     }
 
     private void completeDelivery() {
@@ -222,6 +294,73 @@ public class NavigationActivity extends AppCompatActivity implements OnMapReadyC
                 });
     }
 
+
+
+    private SensorEventListener sensorEventListener = new SensorEventListener() {
+        @Override
+        public void onSensorChanged(SensorEvent event) {
+            if (event.sensor.getType() == Sensor.TYPE_ACCELEROMETER)
+                System.arraycopy(event.values, 0, lastAccelerometer, 0, event.values.length);
+            else if (event.sensor.getType() == Sensor.TYPE_MAGNETIC_FIELD)
+                System.arraycopy(event.values, 0, lastMagnetometer, 0, event.values.length);
+
+            if (SensorManager.getRotationMatrix(rotationMatrix, null, lastAccelerometer, lastMagnetometer)) {
+                // 좌표계 리매핑 수정
+                float[] remappedRotationMatrix = new float[9];
+                SensorManager.remapCoordinateSystem(rotationMatrix,
+                        SensorManager.AXIS_MINUS_X, SensorManager.AXIS_MINUS_Y,  // 축 변경
+                        remappedRotationMatrix);
+
+                SensorManager.getOrientation(remappedRotationMatrix, orientation);
+                float azimuthInRadians = orientation[0];
+                float azimuthInDegrees = (float) Math.toDegrees(azimuthInRadians);
+
+                // 90도 회전 적용
+                azimuthInDegrees = (azimuthInDegrees + 180 + 360) % 360;
+
+                // 저역 통과 필터 적용
+                float deltaRotation = azimuthInDegrees - currentDegree;
+
+                // 180도를 넘는 회전을 보정
+                if (deltaRotation > 180) {
+                    deltaRotation -= 360;
+                } else if (deltaRotation < -180) {
+                    deltaRotation += 360;
+                }
+
+                // 임계값을 높이고 스무딩 팩터를 낮춤
+                if (Math.abs(deltaRotation) > 8.0f && isNavigating && naverMap != null) {
+                    currentDegree += deltaRotation * 0.03f;
+                    currentDegree = (currentDegree + 360) % 360;
+
+                    // 추가 노이즈 필터링
+                    if (Math.abs(deltaRotation) < 45) {
+                        runOnUiThread(() -> {
+                            LocationOverlay locationOverlay = naverMap.getLocationOverlay();
+                            locationOverlay.setBearing(currentDegree);
+
+                            CameraUpdate cameraUpdate = CameraUpdate.toCameraPosition(
+                                    new CameraPosition(
+                                            new LatLng(currentLocation.latitude, currentLocation.longitude),
+                                            naverMap.getCameraPosition().zoom,
+                                            45,
+                                            currentDegree
+                                    )
+                            ).animate(CameraAnimation.Easing, 500);
+
+                            naverMap.moveCamera(cameraUpdate);
+                        });
+                    }
+                }
+            }
+        }
+
+        @Override
+        public void onAccuracyChanged(Sensor sensor, int accuracy) {
+        }
+    };
+
+
     private void initializeViews() {
         mapView = findViewById(R.id.map_view);
 
@@ -236,6 +375,13 @@ public class NavigationActivity extends AppCompatActivity implements OnMapReadyC
         pathOverlay.setWidth(15);
 
         speedInfo = findViewById(R.id.speedInfo);
+
+        speedLimitView = findViewById(R.id.speedLimitView);
+        safetyAlertView = findViewById(R.id.safetyAlert);
+        safetyIcon = findViewById(R.id.safetyIcon);
+        safetyText = findViewById(R.id.safetyText);
+
+        toneGenerator = new ToneGenerator(AudioManager.STREAM_ALARM, 100);
 
         currentMarker = new Marker();
         pickupMarker = new Marker();
@@ -252,7 +398,8 @@ public class NavigationActivity extends AppCompatActivity implements OnMapReadyC
     private void updateSpeed(Location location) {
         if (location.hasSpeed()) {
             float speedMPS = location.getSpeed(); // 초당 미터 단위
-            float speedKPH = speedMPS * 3.6f;     // km/h로 변환
+            float speedKPH = speedMPS * 3.6f;
+            currentSpeed = speedKPH; // km/h로 변환
 
             speedHistory.add(speedKPH);
             if (speedHistory.size() > SPEED_HISTORY_SIZE) {
@@ -284,6 +431,22 @@ public class NavigationActivity extends AppCompatActivity implements OnMapReadyC
     @Override
     public void onMapReady(@NonNull NaverMap naverMap) {
         this.naverMap = naverMap;
+
+        // 현재 위치 오버레이 설정
+        LocationOverlay locationOverlay = naverMap.getLocationOverlay();
+        locationOverlay.setVisible(true);
+
+        // 이미지 아이콘 설정
+        locationOverlay.setIcon(OverlayImage.fromResource(R.drawable.navigation_marker));
+        locationOverlay.setIconWidth(50);  // 이미지 크기에 맞게 조정
+        locationOverlay.setIconHeight(50);
+
+        // 기존의 마커는 숨김
+        if (currentMarker != null) {
+            currentMarker.setMap(null);
+        }
+        // 아이콘 방향 설정
+        locationOverlay.setBearing(getBearingToDestination());
 
         // 기본 설정
         naverMap.setLocationSource(locationSource);
@@ -412,41 +575,56 @@ public class NavigationActivity extends AppCompatActivity implements OnMapReadyC
         // 지도 회전 모드 활성화
         naverMap.setLocationTrackingMode(LocationTrackingMode.Face);
 
-        // 지도 기울이기
-        naverMap.setCameraPosition(new CameraPosition(
-                currentLocation,  // 현재 위치
-                17,              // 줌 레벨
-                45,              // 기울기 각도
-                0                // 베어링
-        ));
-
-        // 나침반 표시
+        // 나침반 모드 활성화
         naverMap.getUiSettings().setCompassEnabled(true);
 
-        // 현위치 버튼 표시
-        naverMap.getUiSettings().setLocationButtonEnabled(true);
+        // 초기 카메라 위치 설정
+        CameraPosition cameraPosition = new CameraPosition(
+                currentLocation,  // 현재 위치
+                17,              // 줌 레벨
+                45,              // 기울기 각도 (45도)
+                getBearingToDestination()  // 목적지 방향으로 회전
+        );
+
+        naverMap.setCameraPosition(cameraPosition);
     }
 
+    // 목적지 방향 계산
+    private float getBearingToDestination() {
+        if (currentLocation != null && targetLocation != null) {
+            Location currentLoc = new Location("");
+            currentLoc.setLatitude(currentLocation.latitude);
+            currentLoc.setLongitude(currentLocation.longitude);
+
+            Location targetLoc = new Location("");
+            targetLoc.setLatitude(targetLocation.latitude);
+            targetLoc.setLongitude(targetLocation.longitude);
+
+            return currentLoc.bearingTo(targetLoc);
+        }
+        return 0f;
+    }
+
+
     // 실시간 위치 업데이트 및 카메라 이동
+    // 위치 업데이트 시 지도 회전
     private void updateNavigationCamera(LatLng location) {
         if (!isNavigating) return;
 
-        // 현재 카메라 위치 가져오기
-        CameraPosition currentCameraPosition = naverMap.getCameraPosition();
+        float bearing = currentDegree;  // getBearingToDestination() 대신 현재 센서 방향 사용
 
-        // 현재 위치와 목적지 위치 사이의 각도 계산
-        double bearing = calculateBearing(location, targetLocation);
+        LocationOverlay locationOverlay = naverMap.getLocationOverlay();
+        locationOverlay.setBearing(bearing);  // 오버레이 방향 업데이트
 
-        CameraPosition cameraPosition = new CameraPosition(
-                location,                           // 현재 위치
-                currentCameraPosition.zoom,         // 현재 줌 레벨 유지
-                currentCameraPosition.tilt,         // 현재 기울기 각도 유지
-                bearing                             // 목적지 방향으로 회전
-        );
+        CameraUpdate cameraUpdate = CameraUpdate.toCameraPosition(new CameraPosition(
+                location,
+                17,     // 줌 레벨
+                45,     // 기울기
+                bearing // 방향
+        )).animate(CameraAnimation.Linear);
 
-        naverMap.moveCamera(CameraUpdate.toCameraPosition(cameraPosition));
+        naverMap.moveCamera(cameraUpdate);
     }
-
     // 두 지점 사이의 각도 계산하는 메서드
     private double calculateBearing(LatLng from, LatLng to) {
         double lat1 = Math.toRadians(from.latitude);
@@ -490,68 +668,100 @@ public class NavigationActivity extends AppCompatActivity implements OnMapReadyC
             return;
         }
 
-        new Thread(() -> {
-            HttpURLConnection conn = null;
-            try {
-                URL url = new URL("https://apis.openapi.sk.com/tmap/routes?version=1");
-                conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestMethod("POST");
-                conn.setRequestProperty("Accept", "application/json");
-                conn.setRequestProperty("Content-Type", "application/json");
-                conn.setRequestProperty("appKey", TMAP_API_KEY);
-                conn.setDoOutput(true);
+        new Thread(() -> makePathRequest()).start();
+    }
 
-                // Request body 생성
-                JSONObject requestBody = new JSONObject();
-                requestBody.put("startX", String.format(Locale.US, "%.6f", currentLocation.longitude));
-                requestBody.put("startY", String.format(Locale.US, "%.6f", currentLocation.latitude));
-                requestBody.put("endX", String.format(Locale.US, "%.6f", targetLocation.longitude));
-                requestBody.put("endY", String.format(Locale.US, "%.6f", targetLocation.latitude));
-                requestBody.put("reqCoordType", "WGS84GEO");
-                requestBody.put("resCoordType", "WGS84GEO");
-                requestBody.put("searchOption", "0");
-
-                // Request body 전송
-                try (OutputStream os = conn.getOutputStream()) {
-                    byte[] input = requestBody.toString().getBytes(StandardCharsets.UTF_8);
-                    os.write(input, 0, input.length);
-                }
-
-                int responseCode = conn.getResponseCode();
-                if (responseCode != HttpURLConnection.HTTP_OK) {
-                    BufferedReader errorReader = new BufferedReader(
-                            new InputStreamReader(conn.getErrorStream(), StandardCharsets.UTF_8));
-                    StringBuilder errorResponse = new StringBuilder();
-                    String line;
-                    while ((line = errorReader.readLine()) != null) {
-                        errorResponse.append(line);
-                    }
-                    throw new IOException("HTTP error code: " + responseCode +
-                            "\nError response: " + errorResponse.toString());
-                }
-
-                // 응답 읽기
-                BufferedReader reader = new BufferedReader(
-                        new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8));
-                StringBuilder response = new StringBuilder();
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    response.append(line);
-                }
-
-                processRouteResponse(response.toString());
-
-            } catch (Exception e) {
-                Log.e(TAG, "Error finding path: " + e.getMessage(), e);
-                runOnUiThread(() ->
-                        Toast.makeText(this, "경로 탐색 중 오류가 발생했습니다", Toast.LENGTH_SHORT).show()
-                );
-            } finally {
-                if (conn != null) {
-                    conn.disconnect();
-                }
+    private void makePathRequest() {
+        HttpURLConnection conn = null;
+        try {
+            conn = setupConnection();
+            sendRequestBody(conn);
+            String response = getResponse(conn);
+            processRouteResponse(response);
+        } catch (Exception e) {
+            handleError(e);
+        } finally {
+            if (conn != null) {
+                conn.disconnect();
             }
-        }).start();
+        }
+    }
+
+    private HttpURLConnection setupConnection() throws IOException {
+        URL url = new URL("https://apis.openapi.sk.com/tmap/routes?version=1");
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        conn.setRequestMethod("POST");
+        conn.setRequestProperty("Accept", "application/json");
+        conn.setRequestProperty("Content-Type", "application/json");
+        conn.setRequestProperty("appKey", TMAP_API_KEY);
+        conn.setDoOutput(true);
+        return conn;
+    }
+
+    private void sendRequestBody(HttpURLConnection conn) throws JSONException, IOException {
+        JSONObject requestBody = createRequestBody();
+        try (OutputStream os = conn.getOutputStream()) {
+            byte[] input = requestBody.toString().getBytes(StandardCharsets.UTF_8);
+            os.write(input, 0, input.length);
+        }
+    }
+
+    private JSONObject createRequestBody() throws JSONException {
+        JSONObject requestBody = new JSONObject();
+        requestBody.put("startX", String.format(Locale.US, "%.6f", currentLocation.longitude));
+        requestBody.put("startY", String.format(Locale.US, "%.6f", currentLocation.latitude));
+        requestBody.put("endX", String.format(Locale.US, "%.6f", targetLocation.longitude));
+        requestBody.put("endY", String.format(Locale.US, "%.6f", targetLocation.latitude));
+        requestBody.put("reqCoordType", "WGS84GEO");
+        requestBody.put("resCoordType", "WGS84GEO");
+        requestBody.put("searchOption", "0");
+        requestBody.put("trafficInfo", "Y");
+
+        // 안전 운전 정보 요청 파라미터 추가
+        requestBody.put("roadDetails", "Y");        // 도로 상세 정보
+        requestBody.put("safer", "Y");              // 안전운전 정보
+        requestBody.put("guidance", "Y");           // 상세 안내 정보
+        requestBody.put("alertInfo", "Y");          // 경고 정보
+        requestBody.put("speedLimit", "Y");
+
+        return requestBody;
+    }
+
+    private String getResponse(HttpURLConnection conn) throws IOException {
+        checkResponseCode(conn);
+
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
+            StringBuilder response = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                response.append(line);
+            }
+            return response.toString();
+        }
+    }
+
+    private void checkResponseCode(HttpURLConnection conn) throws IOException {
+        int responseCode = conn.getResponseCode();
+        if (responseCode != HttpURLConnection.HTTP_OK) {
+            try (BufferedReader errorReader = new BufferedReader(
+                    new InputStreamReader(conn.getErrorStream(), StandardCharsets.UTF_8))) {
+                StringBuilder errorResponse = new StringBuilder();
+                String line;
+                while ((line = errorReader.readLine()) != null) {
+                    errorResponse.append(line);
+                }
+                throw new IOException("HTTP error code: " + responseCode +
+                        "\nError response: " + errorResponse.toString());
+            }
+        }
+    }
+
+    private void handleError(Exception e) {
+        Log.e(TAG, "Error finding path: " + e.getMessage(), e);
+        runOnUiThread(() ->
+                Toast.makeText(this, "경로 탐색 중 오류가 발생했습니다", Toast.LENGTH_SHORT).show()
+        );
     }
 
     // 경로 응답 처리 메서드
@@ -569,6 +779,7 @@ public class NavigationActivity extends AppCompatActivity implements OnMapReadyC
             for (int i = 0; i < features.length(); i++) {
                 JSONObject feature = features.getJSONObject(i);
                 JSONObject properties = feature.getJSONObject("properties");
+                processSafetyInfo(properties);
 
                 // 전체 거리와 시간 정보
                 if (properties.has("totalDistance")) {
@@ -608,6 +819,175 @@ public class NavigationActivity extends AppCompatActivity implements OnMapReadyC
 
         } catch (Exception e) {
             Log.e(TAG, "Error processing route response", e);
+        }
+    }
+
+    private void processSafetyInfo(JSONObject properties) throws JSONException {
+        // 전체 properties 로그 출력
+        Log.d(TAG, "Safety Properties: " + properties.toString());
+
+        // 제한 속도
+        if (properties.has("speedLimit")) {
+            int speedLimit = properties.getInt("speedLimit");
+            Log.d(TAG, "Speed Limit: " + speedLimit);
+            showSpeedLimit(speedLimit);
+        }
+
+        // 어린이보호구역
+        if (properties.has("schoolZone")) {
+            boolean isSchoolZone = properties.getBoolean("schoolZone");
+            Log.d(TAG, "School Zone: " + isSchoolZone);
+            if (isSchoolZone) {
+                showSchoolZoneAlert();
+            }
+        }
+
+        // 과속 단속 카메라
+        if (properties.has("safetyCamera")) {
+            String cameraType = properties.getString("cameraType");
+            double distance = properties.getDouble("distance");
+            Log.d(TAG, "Camera Type: " + cameraType + ", Distance: " + distance);
+            showSafetyCameraAlert(cameraType, distance);
+        }
+
+        // 구간 단속
+        if (properties.has("sectionControl")) {
+            boolean isSectionControl = properties.getBoolean("sectionControl");
+            Log.d(TAG, "Section Control: " + isSectionControl);
+            handleSectionControl(properties);
+        }
+    }
+
+    private void showSpeedLimit(int speedLimit) {
+        runOnUiThread(() -> {
+            if (speedLimitView == null) {
+                Log.e(TAG, "Speed limit view is not initialized");
+                return;
+            }
+
+            // 제한속도 표시 설정
+            speedLimitView.setVisibility(View.VISIBLE);
+            speedLimitView.setText(speedLimit + "km/h");
+
+            // 제한속도 표시 스타일 설정 (더 잘 보이도록)
+            speedLimitView.setTextSize(20);  // 텍스트 크기 키우기
+            speedLimitView.setPadding(16, 8, 16, 8);  // 여백 추가
+            speedLimitView.setBackgroundResource(R.drawable.speed_limit_background);  // 배경 설정
+
+            // 현재 속도가 제한 속도를 초과하는 경우
+            if (currentSpeed > speedLimit) {
+                speedLimitView.setTextColor(Color.RED);
+                speedLimitView.setTypeface(null, Typeface.BOLD);  // 글씨 굵게
+                playWarningSound();
+            } else {
+                speedLimitView.setTextColor(Color.BLACK);
+                speedLimitView.setTypeface(null, Typeface.NORMAL);
+            }
+
+            // 제한속도 변경시 잠시 강조 효과
+            speedLimitView.setAlpha(1.0f);
+            speedLimitView.animate()
+                    .alpha(0.8f)
+                    .setDuration(500)
+                    .start();
+        });
+    }
+
+    private void showSafetyCameraAlert(String type, double distance) {
+        runOnUiThread(() -> {
+            safetyAlertView.setVisibility(View.VISIBLE);
+
+            switch (type) {
+                case "FIXED":
+                    safetyIcon.setImageResource(R.drawable.ic_speed_camera);
+                    safetyText.setText(String.format("%.0fm 앞 단속 카메라", distance));
+                    break;
+                case "SECTION":
+                    safetyIcon.setImageResource(R.drawable.ic_speed_camera);
+                    safetyText.setText("구간 단속 구간 진입");
+                    break;
+            }
+
+            playWarningSound();
+
+            // 3초 후 알림 숨기기
+            new Handler().postDelayed(() ->
+                    safetyAlertView.setVisibility(View.GONE), 3000);
+        });
+    }
+
+    private void showSchoolZoneAlert() {
+        runOnUiThread(() -> {
+            if (safetyAlertView == null || safetyIcon == null || safetyText == null) {
+                Log.e(TAG, "Safety alert views are not initialized");
+                return;
+            }
+
+            safetyAlertView.setVisibility(View.VISIBLE);
+            safetyIcon.setImageResource(R.drawable.ic_school_zone);
+            safetyText.setText("어린이보호구역\n제한속도 30km/h");
+            playWarningSound();
+
+            // 알림이 계속 보이도록 하기
+            Handler handler = new Handler();
+            handler.postDelayed(() -> {
+                if (safetyAlertView != null) {
+                    safetyAlertView.setVisibility(View.GONE);
+                }
+            }, 5000); // 5초 동안 표시
+        });
+    }
+
+    private void handleSectionControl(JSONObject properties) throws JSONException {
+        if (properties.getBoolean("sectionStart")) {
+            isInSectionZone = true;
+            sectionStartTime = System.currentTimeMillis();
+            sectionDistance = properties.getDouble("sectionLength");
+            showSectionStartAlert();
+        } else if (properties.getBoolean("sectionEnd") && isInSectionZone) {
+            calculateSectionSpeed();
+            isInSectionZone = false;
+        }
+    }
+
+    private void showSectionStartAlert() {
+        runOnUiThread(() -> {
+            safetyAlertView.setVisibility(View.VISIBLE);
+            safetyIcon.setImageResource(R.drawable.ic_speed_camera);
+            safetyText.setText("구간 단속 구간 진입");
+
+            // 구간 단속 정보 표시
+            TextView sectionControlInfo = findViewById(R.id.sectionControlInfo);
+            sectionControlInfo.setVisibility(View.VISIBLE);
+            sectionControlInfo.setText("구간 단속 중");
+
+            // 경고음 재생
+            playWarningSound();
+
+            // 3초 후 알림 숨기기
+            new Handler().postDelayed(() -> {
+                safetyAlertView.setVisibility(View.GONE);
+                // 구간 단속 정보는 구간을 벗어날 때까지 계속 표시
+            }, 3000);
+        });
+    }
+
+    private void calculateSectionSpeed() {
+        double timeTaken = (System.currentTimeMillis() - sectionStartTime) / 1000.0; // 초 단위
+        double averageSpeed = (sectionDistance / 1000.0) / (timeTaken / 3600.0); // km/h
+
+        runOnUiThread(() -> {
+            safetyAlertView.setVisibility(View.VISIBLE);
+            safetyText.setText(String.format("구간 평균 속도: %.1f km/h", averageSpeed));
+            new Handler().postDelayed(() ->
+                    safetyAlertView.setVisibility(View.GONE), 3000);
+        });
+    }
+
+    // 경고음 재생 메서드
+    private void playWarningSound() {
+        if (toneGenerator != null) {
+            toneGenerator.startTone(ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, 200);
         }
     }
 
@@ -755,16 +1135,24 @@ public class NavigationActivity extends AppCompatActivity implements OnMapReadyC
         mapView.onStart();
     }
 
-    @Override protected void onResume() {
+    @Override
+    protected void onResume() {
         super.onResume();
-        mapView.onResume();
+        if (haveSensor && haveSensor2) {
+            sensorManager.registerListener(sensorEventListener, accelerometer,
+                    SensorManager.SENSOR_DELAY_UI);
+            sensorManager.registerListener(sensorEventListener, magnetometer,
+                    SensorManager.SENSOR_DELAY_UI);
+        }
     }
 
-    @Override protected void onPause() {
+    @Override
+    protected void onPause() {
         super.onPause();
-        mapView.onPause();
+        if (haveSensor && haveSensor2) {
+            sensorManager.unregisterListener(sensorEventListener);
+        }
     }
-
     @Override protected void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
         mapView.onSaveInstanceState(outState);
@@ -780,6 +1168,9 @@ public class NavigationActivity extends AppCompatActivity implements OnMapReadyC
         mapView.onDestroy();
         if (isNavigating) {
             stopNavigation();
+        }
+        if (toneGenerator != null) {
+            toneGenerator.release();
         }
     }
 

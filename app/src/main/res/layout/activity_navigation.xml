@@ -39,7 +39,7 @@
                 android:textSize="18sp"
                 android:textStyle="bold" />
 
-            <!-- 속도 정보 추가 -->
+            <!-- 속도 정보 -->
             <TextView
                 android:id="@+id/speedInfo"
                 android:layout_width="wrap_content"
@@ -48,6 +48,19 @@
                 android:textStyle="bold"
                 android:textColor="#4FC3F7" />
 
+            <!-- 제한 속도 표시 -->
+            <TextView
+                android:id="@+id/speedLimitView"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_margin="16dp"
+                android:elevation="4dp"
+                android:gravity="center"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:visibility="gone"
+                android:background="@drawable/speed_limit_background"/>
+
             <TextView
                 android:id="@+id/roadName"
                 android:layout_width="0dp"
@@ -55,6 +68,31 @@
                 android:layout_weight="1"
                 android:layout_marginStart="16dp"
                 android:textColor="#4FC3F7" />
+        </LinearLayout>
+
+        <!-- 안전 운전 알림 -->
+        <LinearLayout
+            android:id="@+id/safetyAlert"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:background="@drawable/alert_background"
+            android:padding="8dp"
+            android:layout_marginTop="8dp"
+            android:visibility="gone">
+
+            <ImageView
+                android:id="@+id/safetyIcon"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_marginEnd="8dp"/>
+
+            <TextView
+                android:id="@+id/safetyText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="#FFFFFF"
+                android:textStyle="bold"/>
         </LinearLayout>
 
         <!-- 전체 정보 -->
@@ -77,6 +115,16 @@
                 android:layout_marginStart="16dp"
                 android:textSize="14sp"
                 android:textColor="#4FC3F7" />
+
+            <!-- 구간 단속 정보 -->
+            <TextView
+                android:id="@+id/sectionControlInfo"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:textSize="14sp"
+                android:textColor="#FF5722"
+                android:visibility="gone"/>
         </LinearLayout>
     </LinearLayout>
 
@@ -86,9 +134,9 @@
         android:layout_width="match_parent"
         android:layout_height="0dp"
         app:layout_constraintTop_toBottomOf="@id/navigationGuideLayout"
-        app:layout_constraintBottom_toTopOf="@id/buttonLayout" />
+        app:layout_constraintBottom_toTopOf="@id/btnCompleteDelivery" />
 
-    <!-- 완료 버튼 추가 -->
+    <!-- 완료 버튼 -->
     <Button
         android:id="@+id/btnCompleteDelivery"
         android:layout_width="match_parent"
