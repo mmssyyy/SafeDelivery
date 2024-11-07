@@ -3,7 +3,7 @@ buildscript {
         google()
         mavenCentral()
         maven { url 'https://maven.google.com' }
-        maven { url 'https://naver.jfrog.io/artifactory/maven/' } // Naver Maps SDK repository
+        maven { url 'https://repository.map.naver.com/archive/maven' } // Naver Maps SDK repository
         maven { url 'https://repo1.maven.org/maven2/' } // Central Maven repository
         maven { url 'https://jitpack.io' } // JitPack repository
     }
@@ -21,7 +21,7 @@ allprojects {
     repositories {
         google()
         mavenCentral()
-        maven { url 'https://naver.jfrog.io/artifactory/maven/' }
+        maven { url 'https://repository.map.naver.com/archive/maven' }
         maven { url 'https://repo1.maven.org/maven2/' }
         maven { url 'https://repo.kakao.com/public/' }
         maven { url 'https://www.jitpack.io' }

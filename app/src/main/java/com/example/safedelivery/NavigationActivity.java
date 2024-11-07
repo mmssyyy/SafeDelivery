@@ -17,6 +17,7 @@ import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 import android.media.AudioManager;
@@ -66,8 +67,10 @@ import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 public class NavigationActivity extends AppCompatActivity implements OnMapReadyCallback {
     private static final String TAG = "NavigationActivity";
@@ -78,8 +81,7 @@ public class NavigationActivity extends AppCompatActivity implements OnMapReadyC
     private MapView mapView;
     private NaverMap naverMap;
     private FusedLocationSource locationSource;
-    private TextView navigationInfo;
-    private TextView distanceTimeInfo;
+
     private Button btnNavigateToPickup;
     private Button btnNavigateToDelivery;
     private boolean isNavigating = false;
@@ -123,12 +125,19 @@ public class NavigationActivity extends AppCompatActivity implements OnMapReadyC
     private float[] rotationMatrix = new float[9];
     private float[] orientation = new float[3];
     private float currentDegree = 0f;
-    private static final float ROTATION_THRESHOLD = 5.0f;  // 2.0f에서 증가
-    private static final float SMOOTH_FACTOR = 0.05f;     // 0.1f에서 감소
 
-    private float[] filteredRotationMatrix = new float[9];
-    private float filteredDegree = 0f;
+    private DeliverySafety deliverySafety;
+    private long navigationStartTime;
+    private SafetyMetrics currentMetrics = new SafetyMetrics();
+    private float previousSpeed = 0f;
+    private long previousLocationTime = 0;
+    private static final float SUDDEN_STOP_THRESHOLD = 5.0f; // m/s^2
 
+    private int currentSpeedLimit = 0;
+
+    private TextView currentSafetyScore;
+    private TextView expectedPoints;
+    private LinearLayout safetyScoreLayout;
 
 
 
@@ -136,6 +145,10 @@ public class NavigationActivity extends AppCompatActivity implements OnMapReadyC
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_navigation);
+
+        deliverySafety = new DeliverySafety();
+        currentMetrics = new SafetyMetrics();
+        currentMetrics.reset();
 
         sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
 
@@ -226,6 +239,22 @@ public class NavigationActivity extends AppCompatActivity implements OnMapReadyC
             return;
         }
 
+        // 안전 점수 계산
+        int safetyScore = deliverySafety.evaluateDriving(
+                currentMetrics.signalViolations,
+                currentMetrics.totalDrivingTime,
+                currentMetrics.laneKeepingTime,
+                currentMetrics.speedingTime,
+                currentMetrics.suddenStops,
+                currentMetrics.stopLineTime
+        );
+
+
+        int basePoints = 300;
+        int additionalPoints = calculateAdditionalPoints(safetyScore);
+        int totalPoints = basePoints + additionalPoints;
+
+
         String userId = currentUser.getUid();
         DatabaseReference userRef = FirebaseDatabase.getInstance().getReference("SafeDelivery")
                 .child("UserAccount").child(userId);
@@ -243,9 +272,8 @@ public class NavigationActivity extends AppCompatActivity implements OnMapReadyC
                                 public void onDataChange(@NonNull DataSnapshot userSnapshot) {
                                     UserAccount user = userSnapshot.getValue(UserAccount.class);
                                     if (user != null) {
-                                        // 현재 포인트에 300 추가
-                                        int updatedPoints = user.getPoints() + 300;
-                                        userRef.child("points").setValue(updatedPoints);
+                                        // 사용자의 평균 안전 점수와 총 안전 포인트 업데이트
+                                        updateAverageSafetyScore(userId, safetyScore, currentMetrics.totalDrivingTime, additionalPoints);
                                     }
                                 }
 
@@ -271,9 +299,12 @@ public class NavigationActivity extends AppCompatActivity implements OnMapReadyC
                                                 .child(deliveryId)
                                                 .removeValue()
                                                 .addOnSuccessListener(aVoid1 -> {
+                                                    String message = String.format(
+                                                            "배달이 완료되었습니다.\n획득 포인트: %dP (기본: %dP + 안전 운전: %dP)",
+                                                            totalPoints, basePoints, additionalPoints
+                                                    );
                                                     Toast.makeText(NavigationActivity.this,
-                                                            "배달이 완료되었습니다. 300포인트가 적립되었습니다!",
-                                                            Toast.LENGTH_SHORT).show();
+                                                            message, Toast.LENGTH_LONG).show();
                                                     finish();
                                                 })
                                                 .addOnFailureListener(e ->
@@ -292,6 +323,128 @@ public class NavigationActivity extends AppCompatActivity implements OnMapReadyC
                                 "데이터 로드 실패", Toast.LENGTH_SHORT).show();
                     }
                 });
+    }
+
+
+    private void updateAverageSafetyScore(String userId, int safetyScore, int totalDrivingTime, int additionalPoints) {
+        DatabaseReference userRef = FirebaseDatabase.getInstance().getReference("SafeDelivery")
+                .child("UserAccount").child(userId);
+        DatabaseReference completedDeliveriesRef = FirebaseDatabase.getInstance().getReference("SafeDelivery")
+                .child("completedDeliveries");
+
+        completedDeliveriesRef.orderByChild("userId").equalTo(userId)
+                .addListenerForSingleValueEvent(new ValueEventListener() {
+                    @Override
+                    public void onDataChange(@NonNull DataSnapshot snapshot) {
+                        // 현재까지의 배달 건수 (완료된 배달만 계산)
+                        long totalDeliveries = snapshot.getChildrenCount() > 0 ? snapshot.getChildrenCount() : 1;
+
+                        Log.d(TAG, "Actual completed deliveries: " + totalDeliveries);
+
+                        userRef.addListenerForSingleValueEvent(new ValueEventListener() {
+                            @Override
+                            public void onDataChange(@NonNull DataSnapshot userSnapshot) {
+                                UserAccount user = userSnapshot.getValue(UserAccount.class);
+                                if (user != null) {
+                                    // 기존 값 가져오기
+                                    int oldTotalSafetyPoints = user.getTotalSafetyScore();
+                                    int oldPoints = user.getPoints();
+                                    int oldTotalDrivingTime = user.getTotalDrivingTime();
+
+                                    // 새로운 평균 안전 점수 계산
+                                    double newAverageSafetyScore;
+                                    if (snapshot.getChildrenCount() == 0) { // 첫 배달인 경우
+                                        newAverageSafetyScore = safetyScore;
+                                        Log.d(TAG, "First delivery, setting initial score: " + safetyScore);
+                                    } else {
+                                        // 기존 평균과 현재 점수로 새로운 평균 계산
+                                        double oldAverageSafetyScore = user.getAverageSafetyScore();
+                                        newAverageSafetyScore = ((oldAverageSafetyScore * (totalDeliveries - 1)) + safetyScore) / totalDeliveries;
+                                        Log.d(TAG, "Calculating new average: " + newAverageSafetyScore);
+                                    }
+
+                                    // 새로운 값 계산
+                                    int newTotalSafetyPoints = oldTotalSafetyPoints + additionalPoints;
+                                    int basePoints = 300;
+                                    int newPoints = oldPoints + basePoints + additionalPoints;
+                                    int newTotalDrivingTime = oldTotalDrivingTime + totalDrivingTime;
+
+                                    // 로그 추가
+                                    Log.d(TAG, "Update Values - " +
+                                            "Total Deliveries: " + totalDeliveries +
+                                            ", Safety Score: " + safetyScore +
+                                            ", New Average: " + newAverageSafetyScore);
+
+                                    // 데이터베이스 업데이트
+                                    Map<String, Object> updates = new HashMap<>();
+                                    updates.put("totalSafetyScore", newTotalSafetyPoints);
+                                    updates.put("points", newPoints);
+                                    updates.put("totalDrivingTime", newTotalDrivingTime);
+                                    updates.put("averageSafetyScore", newAverageSafetyScore);
+                                    updates.put("totalDeliveries", totalDeliveries); // 실제 완료된 배달 건수만 저장
+
+                                    userRef.updateChildren(updates)
+                                            .addOnSuccessListener(aVoid -> {
+                                                Log.d(TAG, "Successfully updated user data with " + totalDeliveries + " deliveries");
+                                            })
+                                            .addOnFailureListener(e -> {
+                                                Log.e(TAG, "Error updating user data", e);
+                                            });
+                                }
+                            }
+
+                            @Override
+                            public void onCancelled(@NonNull DatabaseError error) {
+                                Toast.makeText(NavigationActivity.this,
+                                        "안전 점수 업데이트 실패", Toast.LENGTH_SHORT).show();
+                            }
+                        });
+                    }
+
+                    @Override
+                    public void onCancelled(@NonNull DatabaseError error) {
+                        Toast.makeText(NavigationActivity.this,
+                                "총 배달 건수 조회 실패", Toast.LENGTH_SHORT).show();
+                    }
+                });
+    }
+
+    private int calculateAdditionalPoints(int safetyScore) {
+        if (safetyScore >= 90) return 200;
+        if (safetyScore >= 80) return 150;
+        if (safetyScore >= 70) return 100;
+        if (safetyScore >= 50) return 50;
+        return 0;
+    }
+
+    private void saveSafetyData(int safetyScore, int totalPoints) {
+        // 실제 주행이 없었거나 점수가 0점인 경우 저장하지 않음
+        if (safetyScore <= 0 || currentMetrics.totalDrivingTime == 0) {
+            return;
+        }
+
+        String userId = FirebaseAuth.getInstance().getCurrentUser().getUid();
+        DatabaseReference safetyRef = FirebaseDatabase.getInstance()
+                .getReference("SafeDelivery")
+                .child("safetyScores")
+                .child(userId)
+                .child(deliveryId);
+
+        SafetyScore safetyData = new SafetyScore(safetyScore, totalPoints, currentMetrics);
+        safetyRef.setValue(safetyData)
+                .addOnSuccessListener(aVoid -> {
+                    Log.d(TAG, "Safety score saved successfully: " + safetyScore);
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Error saving safety score", e);
+                });
+    }
+    private void addPointHistory(String userId, int points, String description, String type) {
+        DatabaseReference pointHistoryRef = FirebaseDatabase.getInstance()
+                .getReference("SafeDelivery").child("pointHistory");
+
+        PointHistory history = new PointHistory(userId, points, description, type);
+        pointHistoryRef.push().setValue(history);
     }
 
 
@@ -383,6 +536,10 @@ public class NavigationActivity extends AppCompatActivity implements OnMapReadyC
 
         toneGenerator = new ToneGenerator(AudioManager.STREAM_ALARM, 100);
 
+        safetyScoreLayout = findViewById(R.id.safetyScoreLayout);
+        currentSafetyScore = findViewById(R.id.currentSafetyScore);
+        expectedPoints = findViewById(R.id.expectedPoints);
+
         currentMarker = new Marker();
         pickupMarker = new Marker();
         deliveryMarker = new Marker();
@@ -464,6 +621,7 @@ public class NavigationActivity extends AppCompatActivity implements OnMapReadyC
 
             if (isNavigating) {
                 updateNavigationCamera(currentLocation);
+                updateSafetyMetrics(location);
                 updateSpeed(location);  // 속도 업데이트 추가
 
                 if (System.currentTimeMillis() - lastUpdateTime > UPDATE_INTERVAL) {
@@ -487,6 +645,50 @@ public class NavigationActivity extends AppCompatActivity implements OnMapReadyC
         }
 
         checkLocationPermission();
+    }
+
+    // 안전 메트릭 업데이트
+    private void updateSafetyMetrics(Location location) {
+        // 현재 속도 확인
+        if (location.hasSpeed()) {
+            float speedKmh = location.getSpeed() * 3.6f;
+
+            // DeliverySafety에 속도 업데이트
+            deliverySafety.updateSpeed((int)speedKmh);
+
+            // 과속 시간 기록 (통계용)
+            if (speedKmh > getCurrentSpeedLimit()) {
+                currentMetrics.speedingTime++;
+            }
+
+            // 급정거 체크
+            if (previousLocationTime != 0) {
+                float acceleration = (location.getSpeed() - previousSpeed) /
+                        ((location.getTime() - previousLocationTime) / 1000f);
+                if (acceleration < -SUDDEN_STOP_THRESHOLD) {
+                    currentMetrics.suddenStops++;
+                    // DeliverySafety에 급정거 상태 업데이트
+                    deliverySafety.updateSuddenStop((int)speedKmh);
+                }
+            }
+
+            previousSpeed = location.getSpeed();
+            previousLocationTime = location.getTime();
+        }
+
+        // 주행 시간 업데이트
+        currentMetrics.totalDrivingTime =
+                (int)((System.currentTimeMillis() - navigationStartTime) / 1000);
+
+        // 차선 감지 상태 업데이트 (이 부분은 실제 차선 감지 로직으로 대체 필요)
+        boolean isLaneDetected = true; // 임시로 true 설정
+        deliverySafety.updateLaneDetection(isLaneDetected);
+
+        updateRealTimeSafetyScore();
+    }
+
+    private int getCurrentSpeedLimit() {
+        return currentSpeedLimit > 0 ? currentSpeedLimit : 60; // 기본값 60km/h
     }
 
     // 더 정확한 속도 측정을 위한 위치 업데이트 설정 추가
@@ -559,15 +761,49 @@ public class NavigationActivity extends AppCompatActivity implements OnMapReadyC
             return;
         }
 
+        currentSafetyScore.setText("안전 점수: 측정 중");
+        expectedPoints.setText("예상 추가 포인트: 측정 중");
+
         targetLocation = destination;
         isNavigating = true;
         pathOverlay.setMap(null);
+        navigationStartTime = System.currentTimeMillis();
+        currentMetrics.reset();
 
         // 네비게이션 모드 설정
         setupNavigationMode();
         speedInfo.setVisibility(View.VISIBLE);
 
         findPath();
+    }
+
+    private void updateRealTimeSafetyScore() {
+        if (!isNavigating) return;
+
+        // 최소 10초 이상 주행했을 때부터 점수 표시
+        if (currentMetrics.totalDrivingTime >= 5) {
+            // DeliverySafety에서 직접 현재 점수 가져오기
+            int currentScore = deliverySafety.getTotalScore();
+            int additionalPoints = calculateAdditionalPoints(currentScore);
+
+
+            runOnUiThread(() -> {
+                currentSafetyScore.setText(String.format("안전 점수: %d점", currentScore));
+                expectedPoints.setText(String.format("예상 추가 포인트: %dP", additionalPoints));
+
+                // 점수에 따라 색상 변경
+                if (currentScore >= 80) {
+                    currentSafetyScore.setTextColor(Color.parseColor("#4CAF50")); // 초록색
+                    expectedPoints.setTextColor(Color.parseColor("#4CAF50"));
+                } else if (currentScore >= 60) {
+                    currentSafetyScore.setTextColor(Color.parseColor("#FFC107")); // 노란색
+                    expectedPoints.setTextColor(Color.parseColor("#FFC107"));
+                } else {
+                    currentSafetyScore.setTextColor(Color.parseColor("#F44336")); // 빨간색
+                    expectedPoints.setTextColor(Color.parseColor("#F44336"));
+                }
+            });
+        }
     }
 
     // 네비게이션 모드 설정
@@ -723,6 +959,8 @@ public class NavigationActivity extends AppCompatActivity implements OnMapReadyC
         requestBody.put("guidance", "Y");           // 상세 안내 정보
         requestBody.put("alertInfo", "Y");          // 경고 정보
         requestBody.put("speedLimit", "Y");
+        requestBody.put("facilityInfo", "Y");      // 시설물 정보 요청
+        requestBody.put("schoolZoneInfo", "Y");    // 어린이보호구역 정보 명시적 요청
 
         return requestBody;
     }
@@ -829,16 +1067,24 @@ public class NavigationActivity extends AppCompatActivity implements OnMapReadyC
         // 제한 속도
         if (properties.has("speedLimit")) {
             int speedLimit = properties.getInt("speedLimit");
+            currentSpeedLimit = properties.getInt("speedLimit");
             Log.d(TAG, "Speed Limit: " + speedLimit);
             showSpeedLimit(speedLimit);
         }
 
         // 어린이보호구역
-        if (properties.has("schoolZone")) {
-            boolean isSchoolZone = properties.getBoolean("schoolZone");
-            Log.d(TAG, "School Zone: " + isSchoolZone);
-            if (isSchoolZone) {
-                showSchoolZoneAlert();
+        if (properties.has("schoolZone") ||
+                (properties.has("facilityType") && properties.getString("facilityType").contains("어린이")) ||
+                (properties.has("roadType") && properties.getString("roadType").contains("스쿨존"))) {
+            Log.d(TAG, "School Zone Detected!");
+            if (properties.has("distance")) {
+                double distance = properties.getDouble("distance");
+                if (distance < 500) { // 500m 이내
+                    showSchoolZoneAlert();
+                    // 속도 제한 자동 설정
+                    currentSpeedLimit = 30;
+                    showSpeedLimit(30);
+                }
             }
         }
 
@@ -856,6 +1102,22 @@ public class NavigationActivity extends AppCompatActivity implements OnMapReadyC
             Log.d(TAG, "Section Control: " + isSectionControl);
             handleSectionControl(properties);
         }
+        if (properties.has("trafficSignal")) {
+            String signalStatus = properties.getString("trafficSignal");
+            deliverySafety.updateSignal(signalStatus);
+
+            if (properties.getBoolean("isGreenLight")) {
+                currentMetrics.signalViolations = 0;
+            }
+        }
+
+        // 정지선 정보 처리
+        if (properties.has("stopLine")) {
+            if (properties.getBoolean("isStopLine")) {
+                currentMetrics.stopLineTime++;
+            }
+        }
+
     }
 
     private void showSpeedLimit(int speedLimit) {

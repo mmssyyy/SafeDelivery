@@ -44,6 +44,7 @@
             android:exported="true" />
         <activity
             android:name=".DeliveryRequest"
+
             android:exported="true" />
         <activity
             android:name=".DeliveryRequestAdapter"
@@ -51,6 +52,10 @@
 
         <activity
             android:name=".NavigationActivity"
+            android:exported="true" />
+
+        <activity
+            android:name=".PointHistoryActivity"
             android:exported="true" />
 
         <activity

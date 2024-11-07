@@ -70,30 +70,77 @@
                 android:textColor="#4FC3F7" />
         </LinearLayout>
 
+        <LinearLayout
+            android:id="@+id/safetyScoreLayout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="8dp"
+            android:padding="8dp"
+            android:background="@drawable/safety_score_background">
+
+            <TextView
+                android:id="@+id/currentSafetyScore"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textSize="16sp"
+                android:textColor="#4CAF50"
+                android:text="안전 점수: --점"/>
+
+            <TextView
+                android:id="@+id/expectedPoints"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="16sp"
+                android:textColor="#4CAF50"
+                android:text="예상 추가 포인트: --P"/>
+        </LinearLayout>
+
         <!-- 안전 운전 알림 -->
         <LinearLayout
             android:id="@+id/safetyAlert"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:background="@drawable/alert_background"
-            android:padding="8dp"
+            android:background="#80FF0000"
+            android:padding="16dp"
+            android:gravity="center_vertical"
             android:layout_marginTop="8dp"
             android:visibility="gone">
 
             <ImageView
                 android:id="@+id/safetyIcon"
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:layout_marginEnd="8dp"/>
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_marginEnd="16dp"
+                android:src="@drawable/ic_school_zone"/>
 
-            <TextView
-                android:id="@+id/safetyText"
-                android:layout_width="wrap_content"
+            <LinearLayout
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:textColor="#FFFFFF"
-                android:textStyle="bold"/>
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/safetyText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="#FFFFFF"
+                    android:textStyle="bold"
+                    android:textSize="18sp"/>
+
+                <TextView
+                    android:id="@+id/speedLimitText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="#FFFFFF"
+                    android:textSize="16sp"
+                    android:layout_marginTop="4dp"/>
+            </LinearLayout>
         </LinearLayout>
+
+
 
         <!-- 전체 정보 -->
         <LinearLayout

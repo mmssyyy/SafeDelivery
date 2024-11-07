@@ -1,8 +1,11 @@
 package com.example.safedelivery;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
+import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageButton;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -29,6 +32,9 @@ public class PointShopActivity extends AppCompatActivity {
     private String userId;
     private int currentPoints = 0;
 
+    private Button btnStartDelivery, btnPointShop;
+    private ImageButton btnHome, btnList, btnStore, btnProfile;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -41,6 +47,7 @@ public class PointShopActivity extends AppCompatActivity {
                 .child("UserAccount").child(userId);
 
         initializeViews();
+        setupClickListeners();
         loadUserPoints();
         setupRewardsList();
     }
@@ -49,6 +56,12 @@ public class PointShopActivity extends AppCompatActivity {
         tvCurrentPoints = findViewById(R.id.tvCurrentPoints);
         rvRewards = findViewById(R.id.rvRewards);
         rvRewards.setLayoutManager(new LinearLayoutManager(this));
+        btnStartDelivery = findViewById(R.id.btnStartDelivery);
+        btnPointShop = findViewById(R.id.btnPointShop);
+        btnHome = findViewById(R.id.btnHome);
+        btnList = findViewById(R.id.btnList);
+        btnStore = findViewById(R.id.btnStore);
+        btnProfile = findViewById(R.id.btnProfile);
     }
 
     private void loadUserPoints() {
@@ -124,6 +137,30 @@ public class PointShopActivity extends AppCompatActivity {
                 .show();
     }
 
+    private void setupClickListeners() {
+        // 메인 버튼들
+
+        // 하단 네비게이션
+        btnHome.setOnClickListener(v -> {
+            Intent intent = new Intent(PointShopActivity.this, MainActivity.class);
+            startActivity(intent);
+        });
+
+        btnList.setOnClickListener(v -> {
+            Intent intent = new Intent(PointShopActivity.this, DeliveryListActivity.class);
+            startActivity(intent);
+        });
+
+        btnStore.setOnClickListener(v -> {
+
+        });
+
+        btnProfile.setOnClickListener(v -> {
+            Intent intent = new Intent(PointShopActivity.this, UserProfileActivity.class);
+            startActivity(intent);
+        });
+    }
+
     private void exchangeReward(RewardItem reward, String receiveInfo) {
         // 포인트 차감
         int newPoints = currentPoints - reward.getPointCost();
@@ -145,9 +182,18 @@ public class PointShopActivity extends AppCompatActivity {
 
                     historyRef.setValue(history)
                             .addOnSuccessListener(aVoid2 -> {
+                                addPointHistory(userId, reward.getPointCost(),
+                                        reward.getName() + " 교환", "사용");
                                 Toast.makeText(this, "교환이 완료되었습니다",
                                         Toast.LENGTH_SHORT).show();
                             });
                 });
+    }
+    private void addPointHistory(String userId, int points, String description, String type) {
+        DatabaseReference pointHistoryRef = FirebaseDatabase.getInstance()
+                .getReference("SafeDelivery").child("pointHistory");
+
+        PointHistory history = new PointHistory(userId, points, description, type);
+        pointHistoryRef.push().setValue(history);
     }
 }

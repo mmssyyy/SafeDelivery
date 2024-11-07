@@ -9,6 +9,11 @@ public class UserAccount {
     private String password; // 비밀번호
     private String name;
 
+    private int totalSafetyScore;
+    private int totalDrivingTime;
+    private int totalDeliveries;
+    private double averageSafetyScore;
+
     private int points;
 
     public UserAccount() { }
@@ -47,6 +52,29 @@ public class UserAccount {
 
     public int getPoints() {
         return points;
+    }
+
+    public int getTotalSafetyScore() { return totalSafetyScore; }
+    public void setTotalSafetyScore(int totalSafetyScore) {
+        this.totalSafetyScore = totalSafetyScore;
+    }
+
+    public int getTotalDeliveries() {
+        return totalDeliveries;
+    }
+
+    public void setTotalDeliveries(int totalDeliveries) {
+        this.totalDeliveries = totalDeliveries;
+    }
+
+    public int getTotalDrivingTime() { return totalDrivingTime; }
+    public void setTotalDrivingTime(int totalDrivingTime) {
+        this.totalDrivingTime = totalDrivingTime;
+    }
+
+    public double getAverageSafetyScore() { return averageSafetyScore; }
+    public void setAverageSafetyScore(double averageSafetyScore) {
+        this.averageSafetyScore = averageSafetyScore;
     }
 
     public void setPoints(int points) {
